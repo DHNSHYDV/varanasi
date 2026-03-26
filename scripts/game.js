@@ -154,22 +154,10 @@ function buildPlayer(){
   } catch(e) { console.warn('GLTFLoader missing'); }
 }
 
-function buildIronPistol(){
-  const gun = new THREE.Group();
-  // Ultra-compact tactical pistol
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.4), new THREE.MeshStandardMaterial({color:0x222222, roughness:0.2, metalness:0.8}));
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.12), new THREE.MeshStandardMaterial({color:0x111111}));
-  grip.position.set(0, -0.2, 0.12); grip.rotation.x = Math.PI/8;
-  gun.add(body, grip);
-  // Extremely refined position: tucked into the right-hand area
-  gun.position.set(0.4, 1.25, -0.4);
-  player.mesh.add(gun);
-  player.gun = gun;
-}
-
 function init(){
   Save.load();
   Audio3D.init();
+
 
   renderer = new THREE.WebGLRenderer({
     canvas: document.getElementById('c'),
@@ -203,7 +191,6 @@ function init(){
   solidMeshes=World.getSolidMeshes();
   mainSun=World.getMainSun();
   buildPlayer();
-  buildIronPistol();
   Combat.init(scene);
 
   const sv=Save.get();
@@ -339,34 +326,8 @@ function doAttack(){
   const hitEnemy=Combat.tryPlayerAttack(player.attackSphere,dmg);
   const hitBoss=Boss.tryPlayerAttack(player.attackSphere);
   
-  // Tactical Gunfire
-  doShoot();
-  
   if(!hitEnemy&&!hitBoss) Audio3D.playMiss();
 }
-
-function doShoot(){
-  const origin = camera.getWorldPosition(new THREE.Vector3());
-  const dir = new THREE.Vector3();
-  camera.getWorldDirection(dir);
-  
-  // Recoil effect
-  if(player.gun) {
-    player.gun.rotation.x = -0.35; // kick up
-    setTimeout(()=> { if(player.gun) player.gun.rotation.x = 0; }, 80);
-  }
-  
-  const gunPos = player.gun ? player.gun.getWorldPosition(new THREE.Vector3()) : player.mesh.position;
-  const flash = new THREE.PointLight(0xffaa00, 3, 12);
-  flash.position.copy(gunPos); scene.add(flash);
-  setTimeout(()=>scene.remove(flash), 45);
-  
-  Audio3D.playGunshot ? Audio3D.playGunshot() : (console.log('Gunshot!'));
-  
-  const hit = Combat.tryPlayerShoot(origin, dir, 150);
-  if(hit) UI.showMessage('DIRECT HIT');
-}
-
 
 // ─ E: mount / dismount / pickup ─
 function doInteract(){
