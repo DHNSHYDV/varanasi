@@ -65,8 +65,10 @@ const World = (() => {
     buildBurningTemple(180,-30); 
     buildMountains(260,80);  
     buildAetherRealm(-90,110);
+    buildNandi();
     buildSky(scene3d);
     addWorldBoundaries();
+    buildBoundaryWalls(); // NEW: Massive stone walls
     buildWorldPaths();
     addDustParticles();
     addWorldDensity();
@@ -192,12 +194,11 @@ const World = (() => {
 
   /* ─── New: High-End Water Reflector ─── */
   function addWater(cx, cz, w, d){
-    const mirror = new (THREE.Reflector || THREE.Mesh)(new THREE.PlaneGeometry(w, d), {
-      clipBias: 0.003, textureWidth: 1024, textureHeight: 1024, color: 0x223344
-    });
-    mirror.position.set(cx, 0.04, cz);
-    mirror.rotation.x = -Math.PI/2;
-    scene3d.add(mirror);
+    // Reflector is disabled temporarily to fix major flickering in screenshot
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({color:0x112233, roughness:0.1, metalness:0.9}));
+    water.position.set(cx, 0.02, cz);
+    water.rotation.x = -Math.PI/2;
+    scene3d.add(water);
   }
 
   /* ─── Rock helper ─── */
@@ -362,6 +363,44 @@ const World = (() => {
   /* ══════════════════════════════════════════════
      NANDI — Realistic 3D Bull Asset (Bull.gltf)
   ══════════════════════════════════════════════ */
+  /* ─── NEW: Stallion (Horse) ─── */
+  function buildNandi(){
+    nandi = new THREE.Group();
+    nandi.position.set(12, 0, -5); 
+    nandi.userData = { baseY:0, hp:600, maxHp:600, mounted:false, speed:0, targetYaw:Math.PI, dist:0, bodyRoll:0, bodyPitch:0 };
+
+    const gltfLoader = new THREE.GLTFLoader();
+    gltfLoader.load('models/Horse.glb', gltf => {
+      const model = gltf.scene;
+      model.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; c.material = new THREE.MeshStandardMaterial({color:0x050505, roughness:0.25}); } });
+      // RDR-style refined scale (slightly smaller than player height 1.8u)
+      model.scale.setScalar(0.007); 
+      // Auto-ground hooves
+      const bbox = new THREE.Box3().setFromObject(model);
+      model.position.y = -bbox.min.y;
+      nandi.add(model); nandi.model = model;
+      if(gltf.animations.length > 0){ nandiMixer = new THREE.AnimationMixer(model); nandiWalkAction = nandiMixer.clipAction(gltf.animations[0]); nandiWalkAction.play(); }
+    });
+    nandi.rideArrow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
+    nandi.rideArrow.position.set(0, 5, 0); nandi.rideArrow.rotation.z = Math.PI;
+    nandi.add(nandi.rideArrow); scene3d.add(nandi);
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,3.2,8), new THREE.MeshStandardMaterial({visible:false}));
+    col.position.set(0, 1.6, 0); nandi.add(col); nandi.collider = col;
+  }
+
+  function buildBoundaryWalls(){
+    const wallMat = new THREE.MeshStandardMaterial({color:0x222222, roughness:0.8, metalness:0.1});
+    const walls = new THREE.Group();
+    // Front, Back, Left, Right
+    const wallPos = [[200, 0, 310, 600, 50, 10],[200, 0, -310, 600, 50, 10],[-90, 0, 0, 10, 50, 600],[490, 0, 0, 10, 50, 600]];
+    wallPos.forEach(([x,y,z,w,h,d])=>{
+      const g = new THREE.BoxGeometry(w,h,d);
+      const m = new THREE.Mesh(g, wallMat); m.position.set(x,y+h/2-2, z);
+      walls.add(m); solidMeshes.push(m);
+    });
+    scene3d.add(walls);
+  }
+
   /* ── Cinematic Lighting ── */
   function buildLights(scene){
     // Rich deep sky: warm amber hemisphere
@@ -497,6 +536,7 @@ const World = (() => {
     init,
     getGroundMeshes: ()=>groundMeshes,
     getSolidMeshes:  ()=>solidMeshes,
+    getNandi:        ()=>nandi,
     getStones:       ()=>stones,
     getMainSun:      ()=>mainSun,
     tick: wrappedTick
