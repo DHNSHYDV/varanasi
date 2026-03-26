@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Varanasi: Last Dawn of Kali Yuga</title>
+  <link rel="stylesheet" href="ui/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+  <canvas id="c"></canvas>
+
+  <div id="loading">
+    <h1 class="title">Loading Varanasi...</h1>
+    <p class="subtitle">Awakening the Cosmos</p>
+  </div>
+
+  <div id="main-menu">
+    <h1 class="title">VARANASI</h1>
+    <p class="subtitle">Last Dawn of Kali Yuga</p>
+    <button class="btn" id="btn-start">Enter the World</button>
+    <div class="settings-panel">
+      <div class="setting-group">
+        <label>Graphics Quality</label>
+        <select id="set-graphics" style="padding:5px; background:#222; color:#fff; border:1px solid #444;">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high" selected>High</option>
+          <option value="ultra">Ultra</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label>Mouse Sensitivity</label>
+        <input type="range" id="set-sens" min="0.1" max="2.0" step="0.1" value="1.0">
+      </div>
+    </div>
+  </div>
+
+  <div id="pause-menu">
+    <h1 class="title">PAUSED</h1>
+    <button class="btn" id="btn-resume">Resume</button>
+    <button class="btn" id="btn-reset">Reset Save</button>
+  </div>
+
+  <div id="hud">
+    <div id="crosshair"></div>
+    <div id="damage-overlay"></div>
+    
+    <div class="top-left">
+      <div class="bar-container"><div id="hp-bar"></div></div>
+      <div class="bar-container" style="height:8px; width:200px;"><div id="stamina-bar"></div></div>
+    </div>
+
+    <div class="top-right">
+      <div id="stones-ui">
+        <div class="stone-slot" id="s-earth">🌿</div>
+        <div class="stone-slot" id="s-water">💧</div>
+        <div class="stone-slot" id="s-fire">🔥</div>
+        <div class="stone-slot" id="s-air">🌬</div>
+        <div class="stone-slot" id="s-aether">✨</div>
+      </div>
+      <div style="font-size:12px; font-weight:bold; color:#ffd700; text-shadow:1px 1px 0 #000; margin-bottom:15px; text-align:right;">ELEMENTAL STONES (<span id="stone-count">0</span>/5)</div>
+      
+      <div style="font-size:12px; font-weight:bold; color:#aaffaa; text-shadow:1px 1px 0 #000; margin-bottom:5px; text-align:right;">COSMIC MAP</div>
+      <canvas id="minimap" width="160" height="160" style="border:2px solid #555; border-radius:12px; background:rgba(0,0,0,0.6); box-shadow:0 0 10px #000;"></canvas>
+    </div>
+
+    <div class="boss-hud">
+      <div class="boss-title" id="boss-name">Stone Guardian</div>
+      <div class="boss-bar-bg"><div id="boss-hp"></div></div>
+    </div>
+
+    <div class="bottom-center">
+      <div id="interact-prompt">[E] Interact</div>
+      <div id="abilities-ui">
+        <div class="ability" id="a-earth">🌿<div class="cooldown" id="cd-earth"></div></div>
+        <div class="ability" id="a-water">💧<div class="cooldown" id="cd-water"></div></div>
+        <div class="ability" id="a-fire">🔥<div class="cooldown" id="cd-fire"></div></div>
+        <div class="ability" id="a-air">🌬<div class="cooldown" id="cd-air"></div></div>
+        <div class="ability" id="a-aether">✨<div class="cooldown" id="cd-aether"></div></div>
+      </div>
+      <div style="font-size:10px; margin-top:8px; color:#aaa;">Press 1-5 to cast magic when unlocked</div>
+    </div>
+
+    <div id="dialogue">
+      <div class="dlg-name" id="dlg-name">Name</div>
+      <div class="dlg-text" id="dlg-text">Text goes here...</div>
+    </div>
+  </div>
+
+  <div id="cutscene" style="display:none;">
+    <div>
+      <h1 class="title" id="cs-title">Region Unlocked</h1>
+      <p id="cs-body">The path is clear...</p>
+    </div>
+  </div>
+
+  <!-- Load Scripts -->
+  <script src="scripts/systems.js"></script>
+  <script src="scripts/world.js"></script>
+  <script src="scripts/combat.js"></script>
+  <script src="scripts/game.js"></script>
+
+</body>
+</html>
