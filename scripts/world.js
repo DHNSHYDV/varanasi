@@ -65,10 +65,9 @@ const World = (() => {
     buildBurningTemple(180,-30); 
     buildMountains(260,80);  
     buildAetherRealm(-90,110);
-    buildNandi();
     buildSky(scene3d);
     addWorldBoundaries();
-    buildBoundaryWalls(); // NEW: Massive stone walls
+    buildBoundaryWalls(); // Massive stone walls
     buildWorldPaths();
     addDustParticles();
     addWorldDensity();
@@ -536,7 +535,6 @@ const World = (() => {
     init,
     getGroundMeshes: ()=>groundMeshes,
     getSolidMeshes:  ()=>solidMeshes,
-    getNandi:        ()=>nandi,
     getStones:       ()=>stones,
     getMainSun:      ()=>mainSun,
     tick: wrappedTick

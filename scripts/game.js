@@ -156,12 +156,13 @@ function buildPlayer(){
 
 function buildIronPistol(){
   const gun = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.35, 0.7), new THREE.MeshStandardMaterial({color:0x222222, roughness:0.2, metalness:0.8}));
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.2), new THREE.MeshStandardMaterial({color:0x111111}));
-  grip.position.set(0, -0.3, 0.2); grip.rotation.x = Math.PI/8;
+  // Ultra-compact tactical pistol
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.4), new THREE.MeshStandardMaterial({color:0x222222, roughness:0.2, metalness:0.8}));
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.12), new THREE.MeshStandardMaterial({color:0x111111}));
+  grip.position.set(0, -0.2, 0.12); grip.rotation.x = Math.PI/8;
   gun.add(body, grip);
-  // Refined position (smaller, closer to center)
-  gun.position.set(0.6, 1.35, -0.85);
+  // Extremely refined position: tucked into the right-hand area
+  gun.position.set(0.4, 1.25, -0.4);
   player.mesh.add(gun);
   player.gun = gun;
 }
@@ -380,17 +381,6 @@ function doInteract(){
       Audio3D.playPickup(); return;
     }
   }
-  const n = World.getNandi ? World.getNandi() : null;
-  const near = n ? player.mesh.position.distanceTo(n.position) < 8 : false;
-  if(near && !player.onNandi){
-    player.onNandi = true; n.userData.mounted = true;
-    UI.showMessage('Mounted Stallion'); Audio3D.playPickup();
-  } else if(player.onNandi && n){
-    player.onNandi = false; n.userData.mounted = false;
-    const bk = new THREE.Vector3(Math.sin(n.rotation.y), 0, Math.cos(n.rotation.y));
-    player.mesh.position.copy(n.position).addScaledVector(bk, 3.2);
-    player.mesh.position.y += 1.2; yaw = n.rotation.y;
-  }
 }
 
 // ─ C: collect nearby stone ─
@@ -465,32 +455,6 @@ function updateCamera(dt){
   camera.lookAt(camLookAt);
 }
 
-function updateNandiRide(dt, nandi){
-  const isSprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  if(isSprint) player.stamina = Math.max(0, player.stamina - dt*10);
-  else         player.stamina = Math.min(player.maxSt, player.stamina + dt*12);
-  UI.setStamina(player.stamina, player.maxSt);
-
-  const canSprint = isSprint && player.stamina > 1;
-  const maxFwd   = canSprint ? WALK*7.5 : WALK*3.2;
-  const targetSpeed = keys['KeyW'] ? maxFwd : (keys['KeyS'] ? -WALK*1.5 : 0);
-  
-  nandi.userData.speed = THREE.MathUtils.lerp(nandi.userData.speed||0, targetSpeed, dt*3);
-  const absSpd = Math.abs(nandi.userData.speed);
-  const turnRate = THREE.MathUtils.lerp(2.2, 0.7, absSpd / (WALK*7.5));
-  if(keys['KeyA']) nandi.rotation.y += turnRate * dt;
-  if(keys['KeyD']) nandi.rotation.y -= turnRate * dt;
-
-  const fw = new THREE.Vector3(-Math.sin(nandi.rotation.y), 0, -Math.cos(nandi.rotation.y));
-  nandi.position.addScaledVector(fw, nandi.userData.speed * dt);
-  const gY = getGroundY(nandi.position.x, nandi.position.z);
-  nandi.position.y = THREE.MathUtils.lerp(nandi.position.y, gY, dt*12);
-  resolveCollision(nandi.position, 1.8, 3.2);
-
-  player.mesh.position.set(nandi.position.x, nandi.position.y + 1.8, nandi.position.z);
-  player.mesh.rotation.y = nandi.rotation.y;
-}
-
 function updateMinimap(){
   const canvas = document.getElementById('minimap');
   if(!canvas) return;
@@ -546,12 +510,6 @@ function updateMinimap(){
 }
 
 function updatePlayer(dt){
-  const nandi = World.getNandi ? World.getNandi() : null;
-  if(player.onNandi && nandi){
-    updateNandiRide(dt, nandi);
-    updateCamera(dt);
-    return;
-  }
   const isSprint=keys['ShiftLeft']||keys['ShiftRight'];
   const mvSpd=isSprint?WALK*1.8:WALK;
   if(isSprint) player.stamina=Math.max(0,player.stamina-dt*15);
@@ -620,10 +578,6 @@ function updatePlayer(dt){
     }
   });
   if(!nearStone) UI.hideInteract();
-
-  const nd = nandi ? player.mesh.position.distanceTo(nandi.position) : 999;
-  if(nd < 8 && !player.onNandi){ UI.showNandiPrompt('Mount Stallion'); }
-  else { UI.hideNandiPrompt(); }
 
   if(_frameN%60===0) checkBossTrigger();
 
