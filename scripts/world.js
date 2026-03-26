@@ -367,7 +367,11 @@ const World = (() => {
     gltfLoader.load('models/Horse.glb', gltf => {
       const model = gltf.scene;
       model.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; c.material = new THREE.MeshStandardMaterial({color:0x050505, roughness:0.25}); } });
-      model.scale.setScalar(0.0135); nandi.add(model); nandi.model = model;
+      model.scale.setScalar(0.008); 
+      // Snap to ground
+      const bbox = new THREE.Box3().setFromObject(model);
+      model.position.y = -bbox.min.y;
+      nandi.add(model); nandi.model = model;
       if(gltf.animations.length > 0){ nandiMixer = new THREE.AnimationMixer(model); nandiWalkAction = nandiMixer.clipAction(gltf.animations[0]); nandiWalkAction.play(); }
     });
     nandi.rideArrow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
