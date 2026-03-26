@@ -3,9 +3,10 @@
 
 const World = (() => {
   let scene3d, groundMeshes=[], solidMeshes=[], stones=[], particleAnimators=[], templePortal=null;
-  let nandi=null, nandiMixer=null, nandiWalkAction=null;
-  let mainSun=null, treeModels = [], fbxAssets = {};
-  const TREES_COUNT = 450; // High resource consumption forest density
+  let nandi=null, nandiMixer=null, nandiWalkAction=null, sky=null;
+  let mainSun=null, fbxAssets={}, treeInstances = [], treeSpots = [], sunPos=new THREE.Vector3();
+  const TREES_LIMIT = 600; // Super dense for high resources
+  const texLoader = new THREE.TextureLoader();
 
   // ── Primitive helpers ──
   function mkBox(w,h,d,c,r=.85,m=.05){
@@ -29,37 +30,133 @@ const World = (() => {
     scene3d=sceneRef;
     groundMeshes=[]; solidMeshes=[]; stones=[]; particleAnimators=[];
     
-    // ── Pre-load High-End FBX Trees (Realistic & Free Pack) ──
+    // ── Pre-load High-End FBX Assets with Proper Textures ──
     const fbxLoader = new THREE.FBXLoader();
-    const treePaths = [
-      'assets/trees/realistic/TREE.fbx',
-      'assets/trees/free/Free Pack - Tree.fbx'
-    ];
-    treePaths.forEach((path, i) => {
-      fbxLoader.load(path, model => {
-        model.scale.setScalar(i===0 ? 0.07 : 0.018); // Adjust scale for model differences
-        model.traverse(child => { 
-          if(child.isMesh) { 
-            child.castShadow=true; child.receiveShadow=true; 
-            // Enhanced materials for realistic look
-            if(child.material){ child.material.roughness=0.8; child.material.metalness=0.1; }
-          } 
-        });
-        treeModels.push(model);
-        console.log("Realistic tree loaded:", path);
-      }, undefined, err => console.error("FBX Load error:", err));
+    fbxLoader.setPath('assets/trees/realistic/');
+    fbxLoader.load('TREE.fbx', model => {
+      model.traverse(c=>{if(c.isMesh) { c.material.roughness=0.9; c.castShadow=true; c.receiveShadow=true;}});
+      initTreeInstance(model, 0.075, 0); // Type 0: Realistic
     });
 
-    // ── Load Temple FBX Assets ──
-    fbxLoader.load('assets/temples/angkor/AnkorWat.fbx', m => { fbxAssets['angkor']=m; buildBurningTemple(300,-50); });
-    fbxLoader.load('assets/temples/forgotten/Forgotten Temple.fbx', m => { fbxAssets['forgotten']=m; buildAetherRealm(-150,200); });
+    fbxLoader.setPath('assets/trees/free/');
+    fbxLoader.load('Free Pack - Tree.fbx', model => {
+      initTreeInstance(model, 0.02, 1); // Type 1: Free Pack
+    });
+
+    fbxLoader.setPath('assets/temples/angkor/');
+    fbxLoader.load('AnkorWat.fbx', m => { 
+      m.traverse(c=>{if(c.isMesh) { c.material.map=texLoader.load('assets/temples/angkor/AngkorWatTex.jpg'); c.castShadow=true; }});
+      fbxAssets['angkor']=m; buildBurningTemple(300,-50); 
+    });
+
+    fbxLoader.setPath('assets/temples/forgotten/');
+    fbxLoader.load('Forgotten Temple.fbx', m => { 
+      fbxAssets['forgotten']=m; buildAetherRealm(-150,200); 
+    });
 
     buildJungle(0,0);
-    buildRivergats(150,-100);
-    buildMountains(450,150);
+    buildRivergats(80,-60);   // Compressed
+    buildBurningTemple(180,-30); 
+    buildMountains(260,80);  
+    buildAetherRealm(-90,110);
     buildNandi();
-    buildLights(scene3d);
+    buildSky(scene3d);
     addWorldBoundaries();
+    buildWorldPaths();
+    addDustParticles();
+    addWorldDensity();
+  }
+
+  function addWorldDensity(){
+    const grassGeo = new THREE.PlaneGeometry(0.5, 0.8);
+    const grassMat = new THREE.MeshStandardMaterial({color:0x2d4020, side:THREE.DoubleSide, roughness:1.0});
+    const grassInst = new THREE.InstancedMesh(grassGeo, grassMat, 4000);
+    const rockGeo = new THREE.SphereGeometry(0.5, 6, 4);
+    const rockMat = new THREE.MeshStandardMaterial({color:0x776655, roughness:0.8});
+    const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, 500);
+    
+    const dummy = new THREE.Object3D();
+    for(let i=0; i<4000; i++){
+      const x = (Math.random()-0.5)*600 + 150;
+      const z = (Math.random()-0.5)*400;
+      dummy.position.set(x, 0.4, z); dummy.rotation.y=Math.random()*Math.PI;
+      dummy.scale.setScalar(0.8+Math.random()*0.8); dummy.updateMatrix();
+      grassInst.setMatrixAt(i, dummy.matrix);
+    }
+    for(let i=0; i<500; i++){
+      const x = (Math.random()-0.5)*600 + 150;
+      const z = (Math.random()-0.5)*400;
+      dummy.position.set(x, 0.1, z); dummy.rotation.set(Math.random(), Math.random(), Math.random());
+      dummy.scale.set(1+Math.random(), 0.5+Math.random()*0.5, 1+Math.random()); dummy.updateMatrix();
+      rockInst.setMatrixAt(i, dummy.matrix);
+    }
+    scene3d.add(grassInst, rockInst);
+  }
+
+  function buildSky(scene){
+    sky = new THREE.Sky();
+    sky.scale.setScalar(450000);
+    scene.add(sky);
+    mainSun = new THREE.DirectionalLight(0xffffff, 2.5);
+    mainSun.castShadow = true;
+    mainSun.shadow.mapSize.set(2048, 2048);
+    scene.add(mainSun);
+  }
+
+  function buildWorldPaths(){
+    const pathMat = new THREE.MeshStandardMaterial({color:0x4d3828, roughness:1.0});
+    // Link paths between major settlements
+    const pts = [[0,0, 80,-60],[80,-60, 180,-30],[180,-30, 260,80],[0,0, -90,110]];
+    pts.forEach(([x1,z1, x2,z2])=>{
+      const dx=x2-x1, dz=z2-z1, len=Math.sqrt(dx*dx+dz*dz);
+      const mx=(x1+x2)/2, mz=(z1+z2)/2;
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(len, 8), pathMat);
+      p.position.set(mx, 0.05, mz); p.rotation.x=-Math.PI/2; p.rotation.z=Math.atan2(dz,dx);
+      p.receiveShadow=true; scene3d.add(p);
+    });
+  }
+
+  function initTreeInstance(model, scale, index){
+    // Find the primary mesh for instancing (trees usually have one mesh or we merge them)
+    let mesh = null;
+    model.traverse(c=>{ if(c.isMesh) mesh = c; });
+    if(!mesh) return;
+
+    const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, 800);
+    inst.castShadow = true; inst.receiveShadow = true;
+    inst.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    
+    let count = 0;
+    const dummy = new THREE.Object3D();
+    treeSpots.forEach(s => {
+      if(s.type === index){
+        dummy.position.set(s.x, 0, s.z);
+        dummy.rotation.y = Math.random() * Math.PI * 2;
+        dummy.scale.setScalar(scale * (0.8 + Math.random()*0.4));
+        dummy.updateMatrix();
+        inst.setMatrixAt(count++, dummy.matrix);
+      }
+    });
+    inst.count = count;
+    scene3d.add(inst);
+  }
+
+  function addDustParticles(){
+    const geo = new THREE.BufferGeometry();
+    const count = 3000, pos = new Float32Array(count*3);
+    for(let i=0; i<count; i++){ pos[i*3]=(Math.random()-0.5)*150; pos[i*3+1]=Math.random()*40; pos[i*3+2]=(Math.random()-0.5)*150; }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    const mat = new THREE.PointsMaterial({color:0x998877, size:0.12, transparent:true, opacity:0.35});
+    const pts = new THREE.Points(geo, mat); pts.name="dust"; 
+    scene3d.add(pts);
+    particleAnimators.push((t,dt)=>{
+      const arr = pts.geometry.attributes.position.array;
+      for(let i=0; i<count; i++){ 
+         arr[i*3+1] -= dt*0.3; // fall slow
+         if(arr[i*3+1]<0) arr[i*3+1]=40;
+      }
+      pts.geometry.attributes.position.needsUpdate=true;
+    });
   }
 
   function addWorldBoundaries(){
@@ -79,15 +176,9 @@ const World = (() => {
 
   /* ─── Tree helper: Pre-loaded FBX tree clone with collision ─── */
   function addTree(x,z){
-    if(treeModels.length === 0){
-      // Fallback if loading failed
-      const trunk=mkCyl(0.7,1.1,8,6,0x4a3010); trunk.position.set(x,4,z); scene3d.add(trunk);
-      const leaves=mkSphere(3.5,0x224d20); leaves.position.set(x,10,z); scene3d.add(leaves);
-    } else {
-      const model = treeModels[Math.floor(Math.random()*treeModels.length)].clone();
-      model.position.set(x, 0, z);
-      scene3d.add(model);
-    }
+    const type = Math.random() > 0.6 ? 1 : 0;
+    treeSpots.push({x, z, type});
+    
     // Invisible high-fidelity collider
     const col=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,15,8),new THREE.MeshStandardMaterial({visible:false}));
     col.position.set(x, 7.5, z); scene3d.add(col); solidMeshes.push(col);
@@ -104,9 +195,11 @@ const World = (() => {
   }
 
   /* ─── Rock helper ─── */
-  function addRock(x,y,z,s=1){
+  function addRock(x,y,z,s=1.8){
     const rock=mkSphere(s,0x776655);
     rock.scale.set(1+(Math.random()*.5),0.7+Math.random()*.4,1+(Math.random()*.5));
+    // Normalize to 1.8u base size scaling
+    rock.scale.multiplyScalar(0.85);
     rock.position.set(x,y,z); scene3d.add(rock);
     const col=new THREE.Mesh(new THREE.SphereGeometry(s*1.1,6,4),new THREE.MeshStandardMaterial({visible:false}));
     col.position.set(x,y,z); scene3d.add(col); solidMeshes.push(col);
@@ -114,9 +207,9 @@ const World = (() => {
 
   /* ─── Temple pillar helper ─── */
   function addPillar(x,y,z){
-    const p=mkCyl(0.5,0.6,6,8,0x888070); p.position.set(x,y+3,z); scene3d.add(p);
-    const col=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,6,6),new THREE.MeshStandardMaterial({visible:false}));
-    col.position.set(x,y+3,z); scene3d.add(col); solidMeshes.push(col);
+    const p=mkCyl(0.5,0.6,6.2,8,0x888070); p.position.set(x,y+3.1,z); scene3d.add(p);
+    const col=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,6.2,6),new THREE.MeshStandardMaterial({visible:false}));
+    col.position.set(x,y+3.1,z); scene3d.add(col); solidMeshes.push(col);
   }
 
   /* ── 1. JUNGLE (Earth) ── */
@@ -265,78 +358,21 @@ const World = (() => {
   ══════════════════════════════════════════════ */
   function buildNandi(){
     nandi = new THREE.Group();
-    nandi.position.set(12, 0, -5);   // Moved aside, on the floor
-    nandi.rotation.y = Math.PI * 0.7; // Angle slightly
-    nandi.userData = { baseY:0, hp:500, maxHp:500, mounted:false, speed:0, targetYaw:Math.PI, dist:0, bodyRoll:0, bodyPitch:0 };
+    nandi.position.set(12, 0, -5); 
+    nandi.userData = { baseY:0, hp:600, maxHp:600, mounted:false, speed:0, targetYaw:Math.PI, dist:0, bodyRoll:0, bodyPitch:0 };
 
-    // Placeholder box until model loads
-    const fallback = mkBox(2,2,4,0x888888); 
-    fallback.position.y=2;
-    nandi.add(fallback);
-
-    const loader = new THREE.GLTFLoader();
-      loader.load(
-        'assets/Bull/Bull.gltf',
-        gltf => {
-          // Success — remove fallback gray box
-          nandi.remove(fallback);
-          const model = gltf.scene;
-
-          // Native BBox: W=0.77, H=1.80, D=3.09
-          // scale=1.4 → ~2.5u tall, correct for a large ox next to 1.8u player
-          model.scale.setScalar(1.4);
-          // Bull GLTF is -Z forward; rotate so he faces +Z (same as player)
-          model.rotation.y = Math.PI;
-          // Sit his hooves on y=0 (native minY = -0.10)
-          model.position.set(0, 0.14, 0);
-
-          model.traverse(c => {
-            if(c.isMesh){
-              c.castShadow = true;
-              c.receiveShadow = true;
-              if(c.material){
-                c.material.roughness = 0.85;
-                c.material.metalness = 0.05;
-                c.material.needsUpdate = true;
-              }
-            }
-          });
-
-          nandi.add(model);
-          nandi.model = model;
-          console.log('Nandi bull loaded successfully!');
-
-          // Animation mixer
-          if(gltf.animations && gltf.animations.length > 0){
-            nandiMixer = new THREE.AnimationMixer(model);
-            nandiWalkAction = nandiMixer.clipAction(gltf.animations[0]);
-            nandiWalkAction.timeScale = 0;
-            nandiWalkAction.play();
-          }
-        },
-        xhr => { console.log('Bull loading:', Math.round(xhr.loaded/xhr.total*100)+'%'); },
-        err => {
-          console.error('Bull GLTF load error:', err);
-          // Keep fallback visible so Nandi is still interactive
-        }
-      );
-
-    // ── Ride indicator arrow (floats above Nandi) ──
-    const arrowGeo = new THREE.ConeGeometry(0.35, 0.9, 8);
-    nandi.rideArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({color:0x00ffcc}));
-    nandi.rideArrow.position.set(0, 5.0, 0);
-    nandi.rideArrow.rotation.z = Math.PI; // point down
-    nandi.add(nandi.rideArrow);
-
-    nandi.traverse(c => { if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } });
-    scene3d.add(nandi);
-
-    // Invisible collision volume — solid physics bounding box
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,3.8,8),
-      new THREE.MeshStandardMaterial({visible:false}));
-    col.position.set(0, 2, 0);
-    nandi.add(col);
-    nandi.collider = col;
+    const gltfLoader = new THREE.GLTFLoader();
+    gltfLoader.load('models/Horse.glb', gltf => {
+      const model = gltf.scene;
+      model.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; c.material = new THREE.MeshStandardMaterial({color:0x050505, roughness:0.25}); } });
+      model.scale.setScalar(0.015); nandi.add(model); nandi.model = model;
+      if(gltf.animations.length > 0){ nandiMixer = new THREE.AnimationMixer(model); nandiWalkAction = nandiMixer.clipAction(gltf.animations[0]); nandiWalkAction.play(); }
+    });
+    nandi.rideArrow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
+    nandi.rideArrow.position.set(0, 5, 0); nandi.rideArrow.rotation.z = Math.PI;
+    nandi.add(nandi.rideArrow); scene3d.add(nandi);
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,3.8,8), new THREE.MeshStandardMaterial({visible:false}));
+    col.position.set(0, 2, 0); nandi.add(col); nandi.collider = col;
   }
 
 
@@ -453,6 +489,23 @@ const World = (() => {
     }
   }
 
+  function updateSky(t){
+    if(!sky) return;
+    const elevation = 5 + Math.sin(t*0.05) * 45;
+    const azimuth = 180 + t*0.02;
+    const phi = THREE.MathUtils.degToRad(90 - elevation);
+    const theta = THREE.MathUtils.degToRad(azimuth);
+    const pos = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+    sky.material.uniforms['sunPosition'].value.copy(pos);
+    if(mainSun) mainSun.position.copy(pos).multiplyScalar(400);
+    if(window.UI && UI.setTemp) UI.setTemp(Math.floor(22 + elevation*0.5));
+  }
+
+  function wrappedTick(t, dt){
+    updateSky(t);
+    tick(t, dt);
+  }
+
   // Public
   return {
     init,
@@ -461,6 +514,6 @@ const World = (() => {
     getStones:       ()=>stones,
     getNandi:        ()=>nandi,
     getMainSun:      ()=>mainSun,
-    tick
+    tick: wrappedTick
   };
 })();

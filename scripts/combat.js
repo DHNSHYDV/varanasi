@@ -102,7 +102,33 @@ const Combat = (() => {
     return enemies.some(e=>!e.dead && e.mesh.position.distanceTo(pos)<25);
   }
 
-  return { init, tick, getEnemies, tryPlayerAttack, anyEnemyNear, killEnemy };
+  function tryPlayerShoot(origin, dir, maxDist){
+    let hit=false;
+    const ray = new THREE.Ray(origin, dir);
+    enemies.forEach(e=>{
+      if(e.dead) return;
+      const sphere = new THREE.Sphere(e.mesh.position.clone().add(new THREE.Vector3(0,1.5,0)), 1.5);
+      if(ray.intersectsSphere(sphere)){
+        const d = origin.distanceTo(e.mesh.position);
+        if(d < maxDist){
+          e.hp -= 50; e.state='hit'; e.timer=0.15; hit=true;
+          if(e.hp<=0) killEnemy(e);
+        }
+      }
+    });
+    // Boss check
+    if(activeBoss && !hit){
+      const bCol = new THREE.Sphere(activeBoss.mesh.position.clone().add(new THREE.Vector3(0,3,0)), 4);
+      if(ray.intersectsSphere(bCol)){
+         activeBoss.hp -= 40; activeBoss.state='hit'; activeBoss.timer=0.1; hit=true;
+         UI.showBoss(activeBoss.name, Math.max(0,activeBoss.hp), activeBoss.maxHp);
+         if(activeBoss.hp<=0){ killEnemy({mesh:activeBoss.mesh, dead:false}); activeBoss=null; UI.hideBoss(); }
+      }
+    }
+    return hit;
+  }
+
+  return { init, tick, getEnemies, tryPlayerAttack, tryPlayerShoot, anyEnemyNear, killEnemy };
 })();
 
 const Boss = (() => {

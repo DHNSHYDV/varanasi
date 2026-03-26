@@ -278,5 +278,9 @@ const UI = {
   hideBoundary: function(){ 
     document.getElementById('boundary-overlay').style.display = 'none';
     document.body.requestPointerLock();
+  },
+  setTemp: function(v){ 
+    const el = document.getElementById('temp-hud');
+    if(el) el.textContent = v + '°C';
   }
 };

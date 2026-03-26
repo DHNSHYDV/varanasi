@@ -15,13 +15,20 @@ let _frameN=0, _battleMusicOn=false;
 
 // Player State
 const player = {
-  mesh:null, model:null, bones:{}, attackSphere:null,
+  mesh:null, model:null, bones:{}, attackSphere: new THREE.Sphere(new THREE.Vector3(), 2.8),
   hp:100, maxHp:100, stamina:100, maxSt:100,
   velY:0, moveVelX:0, moveVelZ:0,
   isGrounded:true, usedDoubleJump:false,
   isAttacking:false, attackTimer:0, comboCnt:0, comboTimer:0,
-  onNandi:false
+  onNandi:false, weapon: null
 };
+
+const Weapons = [
+  { id:'sword', name:'Ancient Sword', color:0xaaaaaa, dmg:45, range:4, model:null },
+  { id:'staff', name:'Mystic Staff', color:0x884422, dmg:35, range:6, model:null },
+  { id:'pistol', name:'Iron Pistol', color:0x333333, dmg:60, range:60, model:null }
+];
+let worldWeapons = [], isAiming=false;
 
 const WALK=12, GRAVITY=-40, JUMP=18;
 // Camera state — GTA-style: behind+slightly above, shoulder-offset right
@@ -246,23 +253,55 @@ function init(){
     n.position.set(sv.shrinePos.x, sv.shrinePos.y, sv.shrinePos.z - 7);
     n.rotation.y = Math.PI;
     n.userData.speed = 0; n.userData.dist = 0;
+    saveGame();
   };
   document.getElementById('btn-startover').onclick=()=>{ Save.reset(); location.reload(); };
   document.getElementById('btn-exitgame').onclick=()=>{ window.close() || (location.href = "about:blank"); };
 
   document.addEventListener('pointerlockchange',()=>{
-    if(document.pointerLockElement===document.body){ document.getElementById('pause-menu').style.display='none'; }
+    if(document.pointerLockElement===document.body){ 
+      document.getElementById('pause-menu').style.display='none'; 
+      if(!isIntroDone) playIntro();
+    }
     else{ if(document.getElementById('main-menu').style.display==='none') document.getElementById('pause-menu').style.display='flex'; }
   });
+}
+
+let isIntroDone = false;
+function playIntro(){
+  isIntroDone = true;
+  camera.position.set(0, 15, -40);
+  camera.lookAt(0, 5, 0);
+  UI.showMessage('VARANASI: LAST DAWN OF KALI YUGA');
+  Dialogue.play([['Cosmos', 'Arise, warrior. The stones of power await.']]);
+}
+
+function spawnWeapons(){
+  const sword = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 0.3), new THREE.MeshStandardMaterial({color:0xaaaaaa, metalness:0.8}));
+  sword.position.set(8, 0, -8); sword.rotation.z=Math.PI/2.5; scene.add(sword);
+  worldWeapons.push({ mesh:sword, type:'sword' });
 }
 
 function startGame(){
   document.getElementById('main-menu').style.display='none';
   document.getElementById('loading').style.display='none';
   document.getElementById('hud').style.display='block';
+  spawnWeapons();
   document.body.requestPointerLock();
   Audio3D.resume(); Audio3D.startAmbient();
   animate();
+}
+
+function doShoot(){
+  if(player.onNandi) return;
+  Audio3D.playHit();
+  const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  const flash = new THREE.PointLight(0xffff44, 20, 10);
+  flash.position.copy(player.mesh.position).addScaledVector(dir, 2); flash.position.y+=1.5;
+  scene.add(flash); setTimeout(()=>scene.remove(flash), 60);
+
+  const hit = Combat.tryPlayerShoot(player.mesh.position, dir, 60);
+  if(hit) Audio3D.playBossHit();
 }
 
 function doJump(){
@@ -275,30 +314,44 @@ function doAttack(){
   if(player.isAttacking || player.onNandi) return;
   player.isAttacking=true; player.attackTimer=0.35;
   player.comboTimer=1.2;
-  const dmg=25+player.comboCnt*10;
+  const baseDmg = player.weapon ? player.weapon.dmg : 25;
+  const dmg = baseDmg + player.comboCnt * 12;
 
   const fw=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
   
-  // ── Physical Combat Lunge ──
-  player.mesh.rotation.y = yaw; // Snap to face attack direction
-  const lungeDist = player.comboCnt === 0 ? 1.5 : (player.comboCnt === 1 ? 2.5 : 4.0);
+  // ── Physical Combat Lunge & Animation ──
+  player.mesh.rotation.y = yaw;
+  const lungeDist = player.comboCnt === 2 ? 4.5 : 2.0;
   player.mesh.position.addScaledVector(fw, lungeDist);
-  // Ensure we don't dash through a solid object
   resolveCollision(player.mesh.position, 0.6, 1.8);
 
   player.comboCnt=(player.comboCnt+1)%3;
-
-  player.attackSphere.copy(player.mesh.position).addScaledVector(fw, 2);
-  player.attackSphere.y+=1.2;
+  const range = player.weapon ? player.weapon.range : 3.0;
+  player.attackSphere.copy(player.mesh.position).addScaledVector(fw, range*0.8);
+  player.attackSphere.radius = range;
 
   const hitEnemy=Combat.tryPlayerAttack(player.attackSphere,dmg);
   const hitBoss=Boss.tryPlayerAttack(player.attackSphere);
   if(!hitEnemy&&!hitBoss) Audio3D.playSword();
+  else {
+    // Hit reaction shaking
+    if(player.model) player.model.position.x += (Math.random()-0.5)*0.2;
+  }
 }
 
-// ─ E: mount / dismount Nandi only ─
+// ─ E: mount / dismount / pickup ─
 function doInteract(){
   if(Dialogue.isActive()) return;
+  // 1. Weapon Pickup
+  for(let i=0; i<worldWeapons.length; i++){
+    const w = worldWeapons[i];
+    if(player.mesh.position.distanceTo(w.mesh.position) < 5){
+      player.weapon = Weapons.find(wp=>wp.id === w.type);
+      scene.remove(w.mesh); worldWeapons.splice(i, 1);
+      UI.showMessage('Picked up: ' + player.weapon.name);
+      Audio3D.playPickup(); return;
+    }
+  }
   const nandi=World.getNandi();
   const nearNandi=player.mesh.position.distanceTo(nandi.position)<10;
   if(nearNandi&&!player.onNandi){
@@ -681,5 +734,11 @@ function animate(){
   Abilities.tick(dt);
   Combat.tick(dt, player.mesh);
 
-  renderer.render(scene,camera);
+  // ── High-End Atmospheric Dust ──
+  const dust = scene.getObjectByName('dust');
+  if(dust) {
+    dust.position.set(player.mesh.position.x, 0, player.mesh.position.z);
+  }
+
+  renderer.render(scene, camera);
 }
