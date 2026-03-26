@@ -345,17 +345,17 @@ const World = (() => {
       const ring=new THREE.Mesh(new THREE.TorusGeometry(12+i*5,0.6,10,64),new THREE.MeshBasicMaterial({color:0xb040ff}));
       ring.position.set(cx,5+i*3,cz); ring.rotation.x=Math.PI/2; scene3d.add(ring);
     });
-    templePortal=new THREE.Mesh(new THREE.CylinderGeometry(14,14,3,6),new THREE.MeshBasicMaterial({color:0xb040ff,transparent:true,opacity:0.25}));
-    templePortal.position.set(cx,4,cz); scene3d.add(templePortal);
+    templePortal=new THREE.Mesh(new THREE.CylinderGeometry(5,5,1,16),new THREE.MeshBasicMaterial({color:0xb040ff,transparent:true,opacity:0.3}));
+    templePortal.position.set(cx,0.2,cz); scene3d.add(templePortal);
     // Floating rocks
     [[20,10,15],[-20,8,-15],[0,15,20]].forEach(([dx,dy,dz])=>addRock(cx+dx,dy,cz+dz,2.5));
-    createStone('aether', cx, 6, cz, 0xcc44ff);
+    createStone('aether', cx, 2.0, cz, 0xcc44ff);
   }
 
   function createStone(key,x,y,z,clr){
-    const s=new THREE.Mesh(new THREE.OctahedronGeometry(1.4,0),new THREE.MeshStandardMaterial({color:clr,emissive:clr,emissiveIntensity:0.6,roughness:.2,metalness:.5}));
+    const s=new THREE.Mesh(new THREE.OctahedronGeometry(1.6,0),new THREE.MeshStandardMaterial({color:clr,emissive:clr,emissiveIntensity:0.7,roughness:.1,metalness:.6}));
     s.position.set(x,y,z); s.userData={key,baseY:y,collected:false};
-    const glow=new THREE.PointLight(clr,3,12); glow.position.set(x,y,z); s.userData.glow=glow; scene3d.add(glow);
+    const glow=new THREE.PointLight(clr,4,15); glow.position.set(x,y,z); s.userData.glow=glow; scene3d.add(glow);
     scene3d.add(s); stones.push(s);
   }
 

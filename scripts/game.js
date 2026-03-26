@@ -349,7 +349,7 @@ function doCollect(){
   let collected = false;
   World.getStones().forEach(s=>{
     if(s.userData.collected) return;
-    if(player.mesh.position.distanceTo(s.position)<5){
+    if(player.mesh.position.distanceTo(s.position)<8){
       s.userData.collected=true;
       scene.remove(s); if(s.userData.glow) scene.remove(s.userData.glow);
       Save.collectStone(s.userData.key);
