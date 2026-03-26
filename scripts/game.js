@@ -169,7 +169,7 @@ function init(){
   // Use full device pixel ratio (retina/4K) — this is the biggest quality leap
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
   renderer.shadowMap.enabled  = true;
-  renderer.shadowMap.type     = THREE.PCFSoftShadowMap;   // smooth soft shadows
+  renderer.shadowMap.type     = THREE.VSMShadowMap;   // Softer, jitter-free VSM shadows
   renderer.outputEncoding     = THREE.sRGBEncoding;
   renderer.toneMapping        = THREE.ACESFilmicToneMapping; // cinema-grade HDR tonemapping
   renderer.toneMappingExposure = 1.15;   // slight HDR boost

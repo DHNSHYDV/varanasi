@@ -10,15 +10,21 @@ const World = (() => {
 
   // ── Primitive helpers ──
   function mkBox(w,h,d,c,r=.85,m=.05){
-    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m}));
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({
+      color:c,roughness:r,metalness:m, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1
+    }));
     mesh.castShadow=true; mesh.receiveShadow=true; return mesh;
   }
   function mkCyl(rt,rb,h,s,c,r=.85,m=.05){
-    const mesh=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,s),new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m}));
+    const mesh=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,s),new THREE.MeshStandardMaterial({
+      color:c,roughness:r,metalness:m, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1
+    }));
     mesh.castShadow=true; mesh.receiveShadow=true; return mesh;
   }
   function mkSphere(rad,c,r=.85,m=.05){
-    const mesh=new THREE.Mesh(new THREE.SphereGeometry(rad,12,8),new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m}));
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(rad,12,8),new THREE.MeshStandardMaterial({
+      color:c,roughness:r,metalness:m, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1
+    }));
     mesh.castShadow=true; mesh.receiveShadow=true; return mesh;
   }
 
@@ -98,8 +104,10 @@ const World = (() => {
     scene.add(sky);
     mainSun = new THREE.DirectionalLight(0xffffff, 2.5);
     mainSun.castShadow = true;
-    mainSun.shadow.bias = -0.0002;
-    mainSun.shadow.normalBias = 0.04;
+    mainSun.shadow.bias = -0.0001; // Fine-tuned bias for VSM
+    mainSun.shadow.normalBias = 0.02;
+    mainSun.shadow.camera.near = 1;
+    mainSun.shadow.camera.far = 1000;
     mainSun.shadow.mapSize.set(2048, 2048);
     scene.add(mainSun);
   }
