@@ -59,7 +59,6 @@ const World = (() => {
     buildBurningTemple(180,-30); 
     buildMountains(260,80);  
     buildAetherRealm(-90,110);
-    buildNandi();
     buildSky(scene3d);
     addWorldBoundaries();
     buildWorldPaths();
@@ -358,30 +357,6 @@ const World = (() => {
   /* ══════════════════════════════════════════════
      NANDI — Realistic 3D Bull Asset (Bull.gltf)
   ══════════════════════════════════════════════ */
-  function buildNandi(){
-    nandi = new THREE.Group();
-    nandi.position.set(12, 0, -5); 
-    nandi.userData = { baseY:0, hp:600, maxHp:600, mounted:false, speed:0, targetYaw:Math.PI, dist:0, bodyRoll:0, bodyPitch:0 };
-
-    const gltfLoader = new THREE.GLTFLoader();
-    gltfLoader.load('models/Horse.glb', gltf => {
-      const model = gltf.scene;
-      model.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; c.material = new THREE.MeshStandardMaterial({color:0x050505, roughness:0.25}); } });
-      model.scale.setScalar(0.008); 
-      // Snap to ground
-      const bbox = new THREE.Box3().setFromObject(model);
-      model.position.y = -bbox.min.y;
-      nandi.add(model); nandi.model = model;
-      if(gltf.animations.length > 0){ nandiMixer = new THREE.AnimationMixer(model); nandiWalkAction = nandiMixer.clipAction(gltf.animations[0]); nandiWalkAction.play(); }
-    });
-    nandi.rideArrow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
-    nandi.rideArrow.position.set(0, 5, 0); nandi.rideArrow.rotation.z = Math.PI;
-    nandi.add(nandi.rideArrow); scene3d.add(nandi);
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,3.8,8), new THREE.MeshStandardMaterial({visible:false}));
-    col.position.set(0, 2, 0); nandi.add(col); nandi.collider = col;
-  }
-
-
   /* ── Cinematic Lighting ── */
   function buildLights(scene){
     // Rich deep sky: warm amber hemisphere
@@ -518,7 +493,6 @@ const World = (() => {
     getGroundMeshes: ()=>groundMeshes,
     getSolidMeshes:  ()=>solidMeshes,
     getStones:       ()=>stones,
-    getNandi:        ()=>nandi,
     getMainSun:      ()=>mainSun,
     tick: wrappedTick
   };
