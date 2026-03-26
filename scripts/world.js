@@ -100,11 +100,11 @@ const World = (() => {
 
   function buildSky(scene){
     sky = new THREE.Sky();
-    sky.scale.setScalar(450000);
+    sky.scale.setScalar(100000); // 100k is stable
     scene.add(sky);
     mainSun = new THREE.DirectionalLight(0xffffff, 2.5);
     mainSun.castShadow = true;
-    mainSun.shadow.bias = -0.0005; 
+    mainSun.shadow.bias = -0.0008; // Strong bias to prevent 'acne' on flat ground
     mainSun.shadow.mapSize.set(1024, 1024);
     scene.add(mainSun);
   }
@@ -117,7 +117,7 @@ const World = (() => {
       const dx=x2-x1, dz=z2-z1, len=Math.sqrt(dx*dx+dz*dz);
       const mx=(x1+x2)/2, mz=(z1+z2)/2;
       const p = new THREE.Mesh(new THREE.PlaneGeometry(len, 8), pathMat);
-      p.position.set(mx, 0.05, mz); p.rotation.x=-Math.PI/2; p.rotation.z=Math.atan2(dz,dx);
+      p.position.set(mx, 0.08, mz); p.rotation.x=-Math.PI/2; p.rotation.z=Math.atan2(dz,dx);
       p.receiveShadow=true; scene3d.add(p);
     });
   }
@@ -195,7 +195,7 @@ const World = (() => {
     const mirror = new (THREE.Reflector || THREE.Mesh)(new THREE.PlaneGeometry(w, d), {
       clipBias: 0.003, textureWidth: 1024, textureHeight: 1024, color: 0x223344
     });
-    mirror.position.set(cx, 0.05, cz);
+    mirror.position.set(cx, 0.04, cz);
     mirror.rotation.x = -Math.PI/2;
     scene3d.add(mirror);
   }
