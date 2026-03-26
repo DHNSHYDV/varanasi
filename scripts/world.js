@@ -104,11 +104,8 @@ const World = (() => {
     scene.add(sky);
     mainSun = new THREE.DirectionalLight(0xffffff, 2.5);
     mainSun.castShadow = true;
-    mainSun.shadow.bias = -0.0001; // Fine-tuned bias for VSM
-    mainSun.shadow.normalBias = 0.02;
-    mainSun.shadow.camera.near = 1;
-    mainSun.shadow.camera.far = 1000;
-    mainSun.shadow.mapSize.set(2048, 2048);
+    mainSun.shadow.bias = -0.0005; 
+    mainSun.shadow.mapSize.set(1024, 1024);
     scene.add(mainSun);
   }
 

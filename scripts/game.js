@@ -154,26 +154,35 @@ function buildPlayer(){
   } catch(e) { console.warn('GLTFLoader missing'); }
 }
 
+function buildIronPistol(){
+  const gun = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.45, 0.9), new THREE.MeshStandardMaterial({color:0x222222, roughness:0.2, metalness:0.8}));
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.3), new THREE.MeshStandardMaterial({color:0x111111}));
+  grip.position.set(0, -0.4, 0.3); grip.rotation.x = Math.PI/8;
+  gun.add(body, grip);
+  // Position in player's right hand (approximated for First-Person feeling)
+  gun.position.set(0.7, 1.4, -0.8);
+  player.mesh.add(gun);
+  player.gun = gun;
+}
+
 function init(){
   Save.load();
   Audio3D.init();
 
-  // ── ULTRA HIGH-END RENDERER ──
   renderer = new THREE.WebGLRenderer({
     canvas: document.getElementById('c'),
     antialias: true,
-    powerPreference: 'high-performance',
-    logarithmicDepthBuffer: true   // eliminates z-fighting on large terrain
+    powerPreference: 'high-performance'
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  // Use full device pixel ratio (retina/4K) — this is the biggest quality leap
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
   renderer.shadowMap.enabled  = true;
-  renderer.shadowMap.type     = THREE.VSMShadowMap;   // Softer, jitter-free VSM shadows
+  renderer.shadowMap.type     = THREE.PCFSoftShadowMap; 
   renderer.outputEncoding     = THREE.sRGBEncoding;
-  renderer.toneMapping        = THREE.ACESFilmicToneMapping; // cinema-grade HDR tonemapping
-  renderer.toneMappingExposure = 1.15;   // slight HDR boost
-  renderer.physicallyCorrectLights = true; // PBR light falloff
+  renderer.toneMapping        = THREE.ACESFilmicToneMapping; 
+  renderer.toneMappingExposure = 1.0;
+  renderer.physicallyCorrectLights = true;
 
   // Rich twilight-amber sky — Varanasi at dusk
   scene = new THREE.Scene ? new THREE.Scene() : scene;
@@ -182,7 +191,7 @@ function init(){
   // Atmospheric volumetric fog — dense near-far gradient
   scene.fog = new THREE.FogExp2(0x4a3018, 0.004);         // warm brown fog
 
-  camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.4, 3000);
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.5, 2500);
   camSmooth.set(0,6,12);
   camLookAt.set(0,1.5,0);
 
@@ -193,6 +202,7 @@ function init(){
   solidMeshes=World.getSolidMeshes();
   mainSun=World.getMainSun();
   buildPlayer();
+  buildIronPistol();
   Combat.init(scene);
 
   const sv=Save.get();
@@ -327,12 +337,30 @@ function doAttack(){
 
   const hitEnemy=Combat.tryPlayerAttack(player.attackSphere,dmg);
   const hitBoss=Boss.tryPlayerAttack(player.attackSphere);
-  if(!hitEnemy&&!hitBoss) Audio3D.playSword();
-  else {
-    // Hit reaction shaking
-    if(player.model) player.model.position.x += (Math.random()-0.5)*0.2;
-  }
+  
+  // Tactical Gunfire
+  doShoot();
+  
+  if(!hitEnemy&&!hitBoss) Audio3D.playMiss();
 }
+
+function doShoot(){
+  const origin = camera.getWorldPosition(new THREE.Vector3());
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  
+  // Muzzle flash
+  const gunPos = player.gun ? player.gun.getWorldPosition(new THREE.Vector3()) : player.mesh.position;
+  const flash = new THREE.PointLight(0xffaa00, 3, 12);
+  flash.position.copy(gunPos); scene.add(flash);
+  setTimeout(()=>scene.remove(flash), 40);
+  
+  Audio3D.playGunshot ? Audio3D.playGunshot() : (console.log('Gunshot!'));
+  
+  const hit = Combat.tryPlayerShoot(origin, dir, 100);
+  if(hit) UI.showMessage('DIRECT HIT');
+}
+
 
 // ─ E: mount / dismount / pickup ─
 function doInteract(){

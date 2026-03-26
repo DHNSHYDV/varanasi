@@ -46,8 +46,11 @@ h1.title {
 #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; display: none; }
 #crosshair {
   position: absolute; top: 50%; left: 50%;
-  width: 4px; height: 4px; background: rgba(255,255,255,0.4); border-radius: 50%;
-  transform: translate(-50%,-50%); box-shadow: 0 0 4px #000;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-family: 'Inter', sans-serif; font-size: 24px; font-weight: bold;
+  transform: translate(-50%,-50%); text-shadow: 0 0 4px #000;
+  pointer-events: none;
 }
 
 .top-left { position: absolute; top: 30px; left: 40px; }
