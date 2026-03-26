@@ -99,12 +99,14 @@ const World = (() => {
     scene.add(sky);
     mainSun = new THREE.DirectionalLight(0xffffff, 2.5);
     mainSun.castShadow = true;
+    mainSun.shadow.bias = -0.0002;
+    mainSun.shadow.normalBias = 0.04;
     mainSun.shadow.mapSize.set(2048, 2048);
     scene.add(mainSun);
   }
 
   function buildWorldPaths(){
-    const pathMat = new THREE.MeshStandardMaterial({color:0x4d3828, roughness:1.0});
+    const pathMat = new THREE.MeshStandardMaterial({color:0x4d3828, roughness:1.0, polygonOffset:true, polygonOffsetFactor:-4});
     // Link paths between major settlements
     const pts = [[0,0, 80,-60],[80,-60, 180,-30],[180,-30, 260,80],[0,0, -90,110]];
     pts.forEach(([x1,z1, x2,z2])=>{
@@ -365,7 +367,7 @@ const World = (() => {
     gltfLoader.load('models/Horse.glb', gltf => {
       const model = gltf.scene;
       model.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; c.material = new THREE.MeshStandardMaterial({color:0x050505, roughness:0.25}); } });
-      model.scale.setScalar(0.011); nandi.add(model); nandi.model = model;
+      model.scale.setScalar(0.0135); nandi.add(model); nandi.model = model;
       if(gltf.animations.length > 0){ nandiMixer = new THREE.AnimationMixer(model); nandiWalkAction = nandiMixer.clipAction(gltf.animations[0]); nandiWalkAction.play(); }
     });
     nandi.rideArrow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshBasicMaterial({color:0x00ffcc}));

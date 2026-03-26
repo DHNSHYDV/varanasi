@@ -182,7 +182,7 @@ function init(){
   // Atmospheric volumetric fog — dense near-far gradient
   scene.fog = new THREE.FogExp2(0x4a3018, 0.004);         // warm brown fog
 
-  camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.15, 2000);
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.4, 3000);
   camSmooth.set(0,6,12);
   camLookAt.set(0,1.5,0);
 
