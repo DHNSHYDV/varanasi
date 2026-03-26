@@ -234,6 +234,22 @@ function init(){
 
   document.getElementById('btn-reset').onclick=()=>{ Save.reset(); location.reload(); };
   document.getElementById('btn-resume').onclick=()=>{ document.body.requestPointerLock(); };
+  
+  // ── Boundary Overlay Buttons ──
+  document.getElementById('btn-checkpoint').onclick=()=>{ 
+    UI.hideBoundary();
+    const sv = Save.get();
+    player.hp = sv.hp; player.mesh.position.set(sv.shrinePos.x, sv.shrinePos.y, sv.shrinePos.z);
+    player.onNandi = false; nandi.userData.mounted = false;
+    // Bring Nandi to checkpoint shrine
+    const n = World.getNandi();
+    n.position.set(sv.shrinePos.x, sv.shrinePos.y, sv.shrinePos.z - 7);
+    n.rotation.y = Math.PI;
+    n.userData.speed = 0; n.userData.dist = 0;
+  };
+  document.getElementById('btn-startover').onclick=()=>{ Save.reset(); location.reload(); };
+  document.getElementById('btn-exitgame').onclick=()=>{ window.close() || (location.href = "about:blank"); };
+
   document.addEventListener('pointerlockchange',()=>{
     if(document.pointerLockElement===document.body){ document.getElementById('pause-menu').style.display='none'; }
     else{ if(document.getElementById('main-menu').style.display==='none') document.getElementById('pause-menu').style.display='flex'; }
@@ -292,12 +308,23 @@ function doInteract(){
   }
   if(player.onNandi){ 
     player.onNandi=false; nandi.userData.mounted=false; 
-    player.mesh.position.set(
-      nandi.position.x + 4*Math.cos(nandi.rotation.y),
-      nandi.position.y + 1.5,
-      nandi.position.z - 4*Math.sin(nandi.rotation.y)
-    ); 
+    // Land player BEHIND Nandi (Nandi in front)
+    const back = new THREE.Vector3(Math.sin(nandi.rotation.y), 0, Math.cos(nandi.rotation.y));
+    player.mesh.position.copy(nandi.position).addScaledVector(back, 5.5);
+    player.mesh.position.y += 1.5;
+    // Orient player to face towards Nandi
+    yaw = nandi.rotation.y; 
+    
     if(player.model) player.model.position.y = -1;
+    
+    // Check if near stones to avoid landing "on" them
+    World.getStones().forEach(s=>{
+      if(player.mesh.position.distanceTo(s.position)<5.0){
+        // Move player away if too close to a stone during land
+        const v = new THREE.Vector3().subVectors(player.mesh.position, s.position).normalize();
+        player.mesh.position.addScaledVector(v, 3.0);
+      }
+    });
   }
 }
 
@@ -373,70 +400,114 @@ function updateCamera(dt){
   camera.lookAt(camLookAt);
 }
 
-function updateNandiRide(dt,nandi){
+function updateNandiRide(dt, nandi){
   const isSprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  if(isSprint) player.stamina = Math.max(0, player.stamina - dt*8);
-  else player.stamina = Math.min(player.maxSt, player.stamina + dt*15);
+  if(isSprint) player.stamina = Math.max(0, player.stamina - dt*10);
+  else         player.stamina = Math.min(player.maxSt, player.stamina + dt*12);
   UI.setStamina(player.stamina, player.maxSt);
-  
+
   const canSprint = isSprint && player.stamina > 1;
+  const maxFwd   = canSprint ? WALK*7.5 : WALK*3.2;
+  const maxBack  = -WALK*1.5;
+
+  // ── Inertia-based acceleration (heavy ox body) ──
   let targetSpeed = 0;
-  if(keys['KeyW']) targetSpeed = canSprint ? WALK*7.5 : WALK*3.2;
-  if(keys['KeyS']) targetSpeed = -WALK*1.5;
-  
-  nandi.userData.speed = THREE.MathUtils.lerp(nandi.userData.speed || 0, targetSpeed, dt*3);
-  const turnDamp = Math.max(0.1, Math.abs(nandi.userData.speed) / (WALK*2)); 
-  if(keys['KeyA']) nandi.rotation.y += Math.min(1.2, turnDamp) * dt * 2;
-  if(keys['KeyD']) nandi.rotation.y -= Math.min(1.2, turnDamp) * dt * 2;
-  
+  if(keys['KeyW']) targetSpeed = maxFwd;
+  if(keys['KeyS']) targetSpeed = maxBack;
+  // Slower to accelerate (heavy), faster to brake than horse
+  const accel = targetSpeed > (nandi.userData.speed||0) ? 2.8 : 5.0;
+  nandi.userData.speed = THREE.MathUtils.lerp(nandi.userData.speed||0, targetSpeed, dt*accel);
+  if(Math.abs(nandi.userData.speed) < 0.05) nandi.userData.speed = 0;
+
+  // ── Speed-dependent turn rate (slow = tight, fast = wide like a real ox) ──
+  const absSpd = Math.abs(nandi.userData.speed);
+  const turnRate = THREE.MathUtils.lerp(2.2, 0.7, absSpd / (WALK*7.5));
+  if(keys['KeyA']) nandi.rotation.y += turnRate * dt;
+  if(keys['KeyD']) nandi.rotation.y -= turnRate * dt;
+
+  // Facing direction
   const fw = new THREE.Vector3(-Math.sin(nandi.rotation.y), 0, -Math.cos(nandi.rotation.y));
-  nandi.position.addScaledVector(fw, nandi.userData.speed*dt);
-  
-  if(isSprint && Math.random()<0.008) Audio3D.playBullSnort();
-  if(Math.abs(nandi.userData.speed)>1){
-    nandi.userData.dist = (nandi.userData.dist||0) + Math.abs(nandi.userData.speed*dt);
-    if(nandi.userData.dist > 3.5){
-       Audio3D.playBullStep();
-       nandi.userData.dist = 0;
-    }
-  }
-  
-  nandi.position.clamp(new THREE.Vector3(-85,-5,-305),new THREE.Vector3(485,100,305));
-  nandi.position.y = Math.max(getGroundY(nandi.position.x,nandi.position.z), nandi.position.y);
-  // Nandi solid collision
+  nandi.position.addScaledVector(fw, nandi.userData.speed * dt);
+
+  // ── Ground & bounds ──
+  // Check boundary
+  const inBorder = nandi.position.x > -85 && nandi.position.x < 485 && nandi.position.z > -305 && nandi.position.z < 305;
+  if(!inBorder) UI.showBoundary();
+  const gY = getGroundY(nandi.position.x, nandi.position.z);
+  nandi.position.y = THREE.MathUtils.lerp(nandi.position.y, gY, dt*12);
   resolveCollision(nandi.position, 2.0, 3.5);
-  
-  player.mesh.position.set(nandi.position.x, nandi.position.y + 2.5, nandi.position.z);
-  player.mesh.rotation.y = nandi.rotation.y;
-  
-  if(player.model) {
-    const spd = Math.abs(nandi.userData.speed);
-    const isMoving = spd > 1;
-    const t = clock.getElapsedTime();
-    const bounceFreq = isMoving ? spd * 0.8 : 2; 
-    const bounceAmp = isMoving ? 0.08 : 0.015;
-    
-    player.model.position.y = -0.5 + Math.abs(Math.sin(t * bounceFreq)) * bounceAmp;
 
-    if(player.bones && player.bones.spine){
-      const leanForward = isMoving ? Math.PI/12 : Math.PI/24;
-      player.bones.spine.rotation.x = leanForward + Math.sin(t * bounceFreq + 1)*0.03;
-    }
-    
-    if(player.bones) {
-      if(player.bones.lLeg) { player.bones.lLeg.rotation.z = -Math.PI/6; player.bones.lLeg.rotation.x = -Math.PI/4; }
-      if(player.bones.rLeg) { player.bones.rLeg.rotation.z = Math.PI/6; player.bones.rLeg.rotation.x = -Math.PI/4; }
+  // ── PROCEDURAL BODY PHYSICS (no animation clip needed) ──
+  const t = clock.getElapsedTime();
+  if(nandi.model){
+    const model = nandi.model;
+    // Body vertical bounce — gallop rhythm
+    const gaitFreq = absSpd > WALK*4 ? absSpd * 0.55 : absSpd * 0.35;
+    const gaitAmp  = absSpd > 0.5 ? 0.04 + absSpd * 0.006 : 0;
+    model.position.y = 0.14 + Math.abs(Math.sin(t * gaitFreq)) * gaitAmp;
+
+    // Body side sway (roll) when turning
+    const turnInput = (keys['KeyA'] ? 1 : 0) - (keys['KeyD'] ? 1 : 0);
+    nandi.userData.bodyRoll = THREE.MathUtils.lerp(nandi.userData.bodyRoll||0, turnInput * 0.07, dt*4);
+    model.rotation.z = nandi.userData.bodyRoll;
+
+    // Forward lean on acceleration / deceleration
+    const speedDelta = targetSpeed - absSpd;
+    nandi.userData.bodyPitch = THREE.MathUtils.lerp(nandi.userData.bodyPitch||0, speedDelta * 0.003, dt*4);
+    model.rotation.x = nandi.userData.bodyPitch;
+
+    // Head bob independently (heavier, slower)
+    const headNode = model.getObjectByName('Head') ||
+                     model.getObjectByName('head') ||
+                     model.getObjectByName('Bull_Head') ||
+                     model.children[0]; // fallback to first child
+    if(headNode){
+      headNode.rotation.x = Math.sin(t * (gaitFreq*0.5 + 0.5)) * (absSpd > 0.5 ? 0.04 : 0.012);
     }
   }
 
-  if(Math.abs(nandi.userData.speed) > WALK*4.5){
-     pitch += (Math.random()-0.5)*0.012;
-     yaw += (Math.random()-0.5)*0.012;
-     const chargeSphere = nandi.position.clone().addScaledVector(fw, 3.5);
-     Combat.getEnemies().forEach(e=>{
-       if(e.dead) return;
-       if(chargeSphere.distanceTo(e.mesh.position)<4.5){ e.hp=Math.max(0,e.hp-50); if(e.hp<=0) Combat.killEnemy(e); }
-     });
+  // ── Player riding position ──
+  const rideHeight = 2.5 + (nandi.model ? (nandi.model.position.y - 0.14) : 0);
+  player.mesh.position.set(nandi.position.x, nandi.position.y + rideHeight, nandi.position.z);
+  player.mesh.rotation.y = nandi.rotation.y;
+
+  // Player body leans with the bull
+  if(player.model){
+    player.model.position.y = -0.5;
+    player.model.rotation.z = nandi.userData.bodyRoll || 0;
+    if(player.bones && player.bones.spine){
+      player.bones.spine.rotation.x = (nandi.userData.bodyPitch||0)*0.5 + (absSpd > 1 ? 0.12 : 0.04);
+    }
+    if(player.bones){
+      if(player.bones.lLeg){ player.bones.lLeg.rotation.z = -Math.PI/6; player.bones.lLeg.rotation.x = -Math.PI/4; }
+      if(player.bones.rLeg){ player.bones.rLeg.rotation.z =  Math.PI/6; player.bones.rLeg.rotation.x = -Math.PI/4; }
+    }
+  }
+
+  // ── Gallop camera shake ──
+  if(canSprint && absSpd > WALK*5){
+    const shake = absSpd * 0.0008;
+    pitch += (Math.random()-0.5) * shake;
+    yaw   += (Math.random()-0.5) * shake * 0.4;
+  }
+
+  // ── Sound ──
+  if(isSprint && Math.random()<0.006) Audio3D.playBullSnort();
+  if(absSpd > 1){
+    nandi.userData.dist = (nandi.userData.dist||0) + absSpd*dt;
+    if(nandi.userData.dist > (absSpd > WALK*4 ? 1.8 : 3.0)){
+      Audio3D.playBullStep();
+      nandi.userData.dist = 0;
+    }
+  }
+
+  // ── Charge attack at full sprint ──
+  if(absSpd > WALK*4.5){
+    const chargeSphere = nandi.position.clone().addScaledVector(fw, 3.5);
+    Combat.getEnemies().forEach(e=>{
+      if(e.dead) return;
+      if(chargeSphere.distanceTo(e.mesh.position)<4.5){ e.hp=Math.max(0,e.hp-50); if(e.hp<=0) Combat.killEnemy(e); }
+    });
   }
 }
 
@@ -536,8 +607,9 @@ function updatePlayer(dt){
     player.velY=0; player.isGrounded=true; player.usedDoubleJump=false;
   } else { player.isGrounded=false; }
 
-  player.mesh.position.x=Math.max(-85,Math.min(485,player.mesh.position.x));
-  player.mesh.position.z=Math.max(-305,Math.min(305,player.mesh.position.z));
+  // Check boundary
+  const inBorder = player.mesh.position.x > -85 && player.mesh.position.x < 485 && player.mesh.position.z > -305 && player.mesh.position.z < 305;
+  if(!inBorder) UI.showBoundary();
   // Player solid collision pushout
   resolveCollision(player.mesh.position, 0.6, 1.8);
 

@@ -4,7 +4,8 @@
 const World = (() => {
   let scene3d, groundMeshes=[], solidMeshes=[], stones=[], particleAnimators=[], templePortal=null;
   let nandi=null, nandiMixer=null, nandiWalkAction=null;
-  let mainSun=null;
+  let mainSun=null, treeModels = [], fbxAssets = {};
+  const TREES_COUNT = 450; // High resource consumption forest density
 
   // ── Primitive helpers ──
   function mkBox(w,h,d,c,r=.85,m=.05){
@@ -27,22 +28,79 @@ const World = (() => {
   function init(sceneRef){
     scene3d=sceneRef;
     groundMeshes=[]; solidMeshes=[]; stones=[]; particleAnimators=[];
+    
+    // ── Pre-load High-End FBX Trees (Realistic & Free Pack) ──
+    const fbxLoader = new THREE.FBXLoader();
+    const treePaths = [
+      'assets/trees/realistic/TREE.fbx',
+      'assets/trees/free/Free Pack - Tree.fbx'
+    ];
+    treePaths.forEach((path, i) => {
+      fbxLoader.load(path, model => {
+        model.scale.setScalar(i===0 ? 0.07 : 0.018); // Adjust scale for model differences
+        model.traverse(child => { 
+          if(child.isMesh) { 
+            child.castShadow=true; child.receiveShadow=true; 
+            // Enhanced materials for realistic look
+            if(child.material){ child.material.roughness=0.8; child.material.metalness=0.1; }
+          } 
+        });
+        treeModels.push(model);
+        console.log("Realistic tree loaded:", path);
+      }, undefined, err => console.error("FBX Load error:", err));
+    });
+
+    // ── Load Temple FBX Assets ──
+    fbxLoader.load('assets/temples/angkor/AnkorWat.fbx', m => { fbxAssets['angkor']=m; buildBurningTemple(300,-50); });
+    fbxLoader.load('assets/temples/forgotten/Forgotten Temple.fbx', m => { fbxAssets['forgotten']=m; buildAetherRealm(-150,200); });
+
     buildJungle(0,0);
     buildRivergats(150,-100);
-    buildBurningTemple(300,-50);
     buildMountains(450,150);
-    buildAetherRealm(-150,200);
     buildNandi();
     buildLights(scene3d);
+    addWorldBoundaries();
   }
 
-  /* ─── Tree helper: trunk + leaves + SOLID collider ─── */
+  function addWorldBoundaries(){
+    const bMat = new THREE.MeshStandardMaterial({visible:false});
+    const bounds = [
+      {p:[115,10,-310], s:[600,40,10]}, // North
+      {p:[115,10,310],  s:[600,40,10]}, // South
+      {p:[490,10,0],    s:[10,40,620]}, // East
+      {p:[-90,10,0],    s:[10,40,620]}  // West
+    ];
+    bounds.forEach(b => {
+      const g = new THREE.Mesh(new THREE.BoxGeometry(...b.s), bMat);
+      g.position.set(...b.p);
+      scene3d.add(g); solidMeshes.push(g);
+    });
+  }
+
+  /* ─── Tree helper: Pre-loaded FBX tree clone with collision ─── */
   function addTree(x,z){
-    const trunk=mkCyl(0.7,1.1,8,6,0x4a3010); trunk.position.set(x,4,z); scene3d.add(trunk);
-    const leaves=mkSphere(3.5,0x224d20); leaves.position.set(x,10,z); leaves.scale.set(1,1.2,1); scene3d.add(leaves);
-    // Invisible solid box for collision
-    const col=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,10,8),new THREE.MeshStandardMaterial({visible:false}));
-    col.position.set(x,5,z); scene3d.add(col); solidMeshes.push(col);
+    if(treeModels.length === 0){
+      // Fallback if loading failed
+      const trunk=mkCyl(0.7,1.1,8,6,0x4a3010); trunk.position.set(x,4,z); scene3d.add(trunk);
+      const leaves=mkSphere(3.5,0x224d20); leaves.position.set(x,10,z); scene3d.add(leaves);
+    } else {
+      const model = treeModels[Math.floor(Math.random()*treeModels.length)].clone();
+      model.position.set(x, 0, z);
+      scene3d.add(model);
+    }
+    // Invisible high-fidelity collider
+    const col=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,15,8),new THREE.MeshStandardMaterial({visible:false}));
+    col.position.set(x, 7.5, z); scene3d.add(col); solidMeshes.push(col);
+  }
+
+  /* ─── New: High-End Water Reflector ─── */
+  function addWater(cx, cz, w, d){
+    const mirror = new (THREE.Reflector || THREE.Mesh)(new THREE.PlaneGeometry(w, d), {
+      clipBias: 0.003, textureWidth: 1024, textureHeight: 1024, color: 0x223344
+    });
+    mirror.position.set(cx, 0.05, cz);
+    mirror.rotation.x = -Math.PI/2;
+    scene3d.add(mirror);
   }
 
   /* ─── Rock helper ─── */
@@ -97,15 +155,27 @@ const World = (() => {
     // Decorative shrine pillars
     [[-10,-20],[-10,20],[10,-20],[10,20]].forEach(([dx,dz])=>addPillar(cx+dx,0,cz+dz));
     const roofSlab=mkBox(30,1,50,0x7a6a5a); roofSlab.position.set(cx,5.5,cz); scene3d.add(roofSlab);
+    // Dynamic River Reflector — high resources
+    addWater(cx, cz - 10, 160, 120);
     createStone('water', cx, 5, cz-30, 0x00aaff);
   }
 
   /* ── 3. BURNING TEMPLE (Fire) ── */
   function buildBurningTemple(cx,cz){
     const ground=mkBox(140,4,140,0x3d1a0e,1,0); ground.position.set(cx,-2,cz); scene3d.add(ground); addGround(ground);
-    // Main temple
-    const templeBase=mkBox(44,12,44,0x222222); templeBase.position.set(cx,6,cz); scene3d.add(templeBase); solidMeshes.push(templeBase);
-    const tTop=mkCyl(0,22,28,4,0x1a1a1a); tTop.position.set(cx,26,cz); scene3d.add(tTop); solidMeshes.push(tTop);
+    // ── HIGH-END TEMPLE 1: Angkor Wat ──
+    if(fbxAssets['angkor']){
+      const temple = fbxAssets['angkor'].clone();
+      temple.position.set(cx, 0, cz);
+      temple.scale.setScalar(0.045);
+      scene3d.add(temple);
+      // Main collision core
+      const base = mkBox(30, 15, 30, 0, 0, 0); base.position.set(cx, 7.5, cz); 
+      base.visible = false; scene3d.add(base); solidMeshes.push(base);
+    } else {
+      const templeBase=mkBox(44,12,44,0x222222); templeBase.position.set(cx,6,cz); scene3d.add(templeBase); solidMeshes.push(templeBase);
+      const tTop=mkCyl(0,22,28,4,0x1a1a1a); tTop.position.set(cx,26,cz); scene3d.add(tTop); solidMeshes.push(tTop);
+    }
     // Pillars around temple
     [[-20,-20],[20,-20],[-20,20],[20,20],[-20,0],[20,0],[0,-20],[0,20]].forEach(([dx,dz])=>addPillar(cx+dx,0,cz+dz));
     // Perimeter wall
@@ -158,6 +228,15 @@ const World = (() => {
   function buildAetherRealm(cx,cz){
     // Floating platform
     const pt=mkBox(80,2,80,0x1a053a,.4,.8); pt.position.set(cx,-1,cz); groundMeshes.push(pt); scene3d.add(pt);
+    // ── HIGH-END TEMPLE 2: Forgotten Temple ──
+    if(fbxAssets['forgotten']){
+      const temple = fbxAssets['forgotten'].clone();
+      temple.position.set(cx, 0, cz);
+      temple.scale.setScalar(0.015);
+      scene3d.add(temple);
+      const core = mkBox(20, 10, 20, 0, 0, 0); core.position.set(cx, 5, cz);
+      core.visible = false; scene3d.add(core); solidMeshes.push(core);
+    }
     // Cosmic pillars
     [[-25,-25],[25,-25],[-25,25],[25,25]].forEach(([dx,dz])=>{
       const p=mkCyl(.8,.8,20,8,0x8833cc,.5,.5); p.position.set(cx+dx,10,cz+dz); p.material.emissive.setHex(0x5500aa); p.material.emissiveIntensity=0.5; scene3d.add(p); solidMeshes.push(p);
@@ -186,8 +265,9 @@ const World = (() => {
   ══════════════════════════════════════════════ */
   function buildNandi(){
     nandi = new THREE.Group();
-    nandi.position.set(0, 0, -10);
-    nandi.userData = { baseY:0, hp:500, maxHp:500, mounted:false, speed:0, targetYaw:0, dist:0 };
+    nandi.position.set(12, 0, -5);   // Moved aside, on the floor
+    nandi.rotation.y = Math.PI * 0.7; // Angle slightly
+    nandi.userData = { baseY:0, hp:500, maxHp:500, mounted:false, speed:0, targetYaw:Math.PI, dist:0, bodyRoll:0, bodyPitch:0 };
 
     // Placeholder box until model loads
     const fallback = mkBox(2,2,4,0x888888); 
@@ -303,31 +383,58 @@ const World = (() => {
   function tick(t, dt){
     particleAnimators.forEach(fn=>fn(t,dt));
 
-    if(nandiMixer){
-      nandiMixer.update(dt);
-      if(nandiWalkAction){
-        // Adjust animation speed based on movement speed
-        const spd = nandi && nandi.userData ? nandi.userData.speed : 0;
-        nandiWalkAction.timeScale = spd > 0.1 ? spd/16 : 0.0;
+    // ── Nandi Procedural Animation (legs + idle sway) ──
+    if(nandi && nandi.model){
+      const spd = Math.abs(nandi.userData.speed || 0);
+      const mounted = nandi.userData.mounted;
+
+      // Advance the skeletal mixer if it exists (some GLTF have anims)
+      if(nandiMixer) nandiMixer.update(dt);
+
+      // ─ PROCEDURAL LEG SWING ─
+      // Walk through all child meshes of the model and find leg-like names
+      const gaitFreq = spd > 0.5 ? spd * 0.55 : (mounted ? 0 : 0.6); // idle subtle
+      const gaitAmp  = spd > 0.5 ? 0.55 : 0.04;
+      let legIdx = 0;
+      nandi.model.traverse(child => {
+        if(!child.isMesh) return;
+        const n = child.name.toLowerCase();
+        const isLeg = n.includes('leg') || n.includes('thigh') || n.includes('shin')
+                   || n.includes('foot') || n.includes('hoof') || n.includes('knee')
+                   || n.includes('calf');
+        if(isLeg){
+          // Alternate front/back legs in opposite phase
+          const phase = (legIdx % 2 === 0) ? 0 : Math.PI;
+          child.rotation.x = Math.sin(t * gaitFreq + phase) * gaitAmp;
+          legIdx++;
+        }
+        // Head nod
+        if(n.includes('head') || n === 's'){
+          child.rotation.x = Math.sin(t * (gaitFreq*0.5 + 0.5)) * (spd > 0.5 ? 0.05 : 0.015);
+        }
+        // Tail sway
+        if(n.includes('tail')){
+          child.rotation.z = Math.sin(t * 1.8) * 0.18;
+        }
+      });
+
+      // ─ IDLE BREATHING (body scale pulse) only when still ─
+      if(!mounted && spd < 0.1){
+        const breathe = 1 + Math.sin(t * 1.4) * 0.008;
+        nandi.model.scale.set(1.4 * breathe, 1.4, 1.4 / breathe);
+      } else {
+        nandi.model.scale.setScalar(1.4);
       }
     }
 
-    // Nandi idle wander
-    if(nandi && !nandi.userData.mounted){
-      if(Math.random()<0.004) nandi.userData.targetYaw = nandi.rotation.y + (Math.random()-0.5)*1.5;
-      nandi.rotation.y += (nandi.userData.targetYaw - nandi.rotation.y) * dt * 0.7;
-      nandi.userData.speed = 1.2;
-      nandi.position.addScaledVector(
-        new THREE.Vector3(-Math.sin(nandi.rotation.y),0,-Math.cos(nandi.rotation.y)), 
-        nandi.userData.speed*dt
-      );
-      nandi.position.y = Math.max(0, nandi.userData.baseY);
-    }
+    // ── Bull stays STILL when not mounted ──
+    // (no idle wander — bull waits for the player to mount it)
+
     // Pulse the ride arrow
     if(nandi && nandi.rideArrow){
       const show = !nandi.userData.mounted;
       nandi.rideArrow.visible = show;
-      if(show) nandi.rideArrow.position.y = 7.2 + Math.sin(t*3)*0.4; // bob up/down
+      if(show) nandi.rideArrow.position.y = 4.5 + Math.sin(t*3)*0.35;
     }
 
     // Stone float animation

@@ -270,5 +270,13 @@ const UI = {
       if(val<=0) el.style.display='none';
       else { el.style.display='flex'; el.textContent = Math.ceil(val)+'s'; }
     }
+  },
+  showBoundary: function(){ 
+    document.getElementById('boundary-overlay').style.display = 'flex';
+    document.exitPointerLock();
+  },
+  hideBoundary: function(){ 
+    document.getElementById('boundary-overlay').style.display = 'none';
+    document.body.requestPointerLock();
   }
 };

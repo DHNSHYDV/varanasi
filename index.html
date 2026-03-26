@@ -6,6 +6,9 @@
   <link rel="stylesheet" href="ui/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/FBXLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/objects/Reflector.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.2/umd/index.min.js"></script>
 </head>
 <body>
 
@@ -86,6 +89,17 @@
     <div id="dialogue">
       <div class="dlg-name" id="dlg-name">Name</div>
       <div class="dlg-text" id="dlg-text">Text goes here...</div>
+    </div>
+  </div>
+
+  <!-- Boundary Warning Overlay -->
+  <div id="boundary-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.78); backdrop-filter:blur(6px) grayscale(1); z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:24px;">
+    <div style="font-family:'Cinzel',serif; font-size:2.5rem; color:#ff4444; text-shadow:0 0 30px #ff0000; letter-spacing:4px; animation:pulse 1s infinite;">⚠ STAY IN BORDER ⚠</div>
+    <div style="font-family:sans-serif; font-size:1rem; color:#ccbbaa; margin-bottom:10px;">You have wandered beyond the sacred boundary of Varanasi</div>
+    <div style="display:flex; flex-direction:column; gap:14px; align-items:center;">
+      <button id="btn-checkpoint" class="btn" style="min-width:280px;">↩  Restart at Last Checkpoint</button>
+      <button id="btn-startover" class="btn" style="min-width:280px; background:rgba(180,60,60,0.4);">🔄  Start Over</button>
+      <button id="btn-exitgame" class="btn" style="min-width:280px; background:rgba(60,60,60,0.4);">✕  Exit Game</button>
     </div>
   </div>
 
