@@ -363,7 +363,7 @@ function doInteract(){
     player.onNandi=false; nandi.userData.mounted=false; 
     // Land player BEHIND Nandi (Nandi in front)
     const back = new THREE.Vector3(Math.sin(nandi.rotation.y), 0, Math.cos(nandi.rotation.y));
-    player.mesh.position.copy(nandi.position).addScaledVector(back, 5.5);
+    player.mesh.position.copy(nandi.position).addScaledVector(back, 3.5);
     player.mesh.position.y += 1.5;
     // Orient player to face towards Nandi
     yaw = nandi.rotation.y; 
